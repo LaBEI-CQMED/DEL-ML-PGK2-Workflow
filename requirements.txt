@@ -1,0 +1,8 @@
+# Tested on Python 3.12. Versions below are the ones the pipeline was validated with.
+numpy==2.5.3
+pandas==3.0.6
+scipy==1.18.1
+scikit-learn==1.9.1
+rdkit==2026.3.6
+lightgbm==4.7.0
+pyarrow==25.0.0
