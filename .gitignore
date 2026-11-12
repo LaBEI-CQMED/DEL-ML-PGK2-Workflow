@@ -3,3 +3,5 @@ __pycache__/
 data/
 submission.csv
 .pytest_cache/
+.env
+.vscode

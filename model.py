@@ -24,29 +24,35 @@ def lightgbm(scale_pos_weight, seed=SEED, n_jobs=N_JOBS):
 
 
 def pos_weight(y):
+    """Return the ratio of negative to positive rows parameter used by LightGBM"""
     y = np.asarray(y)
     n_pos = max(int(y.sum()), 1)
     return float((len(y) - n_pos) / n_pos)
 
 
-def al_filter_confidence(X_al, y_al, X_del, seed=SEED):
-    """AL-model P(active) for each DEL row. The AL model is out-of-domain on DEL, so these scores
-    pile up near zero and must be thresholded by percentile, never an absolute cut."""
-    model = logistic_regression(seed).fit(X_al, np.asarray(y_al).astype(int))
-    return model.predict_proba(X_del)[:, 1]
+def run_al_filter_on_del(X_al, y_al, X_del, seed=SEED):
+    """AL-model P(active) for each DEL row, which will be used to filter the DEL dataset."""
+    al_filter_model = logistic_regression(seed).fit(X_al, y_al)
+    return al_filter_model.predict_proba(X_del)[:, 1]
 
 
-def al_keep_mask(confidence, y_del, p):
+def create_del_filtered_mask(confidence, y_del, p):
     """Keep every DEL row except the bottom-p positives and top-p negatives by AL confidence
-    (the likely false positives the AL model rejects and false negatives it endorses)."""
+    (the likely false positives the AL model rejects and false negatives it flags).
+    Returns a boolean mask of the same length as y_del, True = keep, False = filter out."""
     y_del = np.asarray(y_del).astype(int)
     confidence = np.asarray(confidence, dtype=float)
+    
     positives = np.where(y_del == 1)[0]
     negatives = np.where(y_del == 0)[0]
-    keep = np.ones(len(y_del), dtype=bool)
-    keep[positives[confidence[positives] <= np.quantile(confidence[positives], p)]] = False
-    keep[negatives[confidence[negatives] >= np.quantile(confidence[negatives], 1 - p)]] = False
-    return keep
+    
+    filter_mask = np.ones(len(y_del), dtype=bool)
+    inconsistent_positives = positives[confidence[positives] <= np.quantile(confidence[positives], p)]
+    inconsistent_negatives = negatives[confidence[negatives] >= np.quantile(confidence[negatives], 1 - p)]
+    inconsistent_rows = np.concatenate([inconsistent_positives, inconsistent_negatives])
+
+    filter_mask[inconsistent_rows] = False
+    return filter_mask
 
 
 def rank_mean(*scores):

@@ -5,17 +5,17 @@ variables (see README). Run:
 
   DXC_JOBS=32 python tests/reproduce_check.py
 """
-import os
 import sys
+from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, Path(__file__).parent.parent)
 import config as cfg          # noqa: E402
 from data import load_library  # noqa: E402
 from run import run            # noqa: E402
 
-REFERENCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "submission_1_reference.csv")
+REFERENCE = Path(__file__).parent / "submission_1_reference.csv"
 
 
 def main():

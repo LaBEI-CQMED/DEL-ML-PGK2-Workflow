@@ -19,51 +19,75 @@ from scipy.stats import rankdata
 import config as cfg
 from data import load_active_learning, load_del, load_library
 from features import featurize
-from model import (al_filter_confidence, al_keep_mask, lightgbm, logistic_regression,
+from model import (run_al_filter_on_del, create_del_filtered_mask, lightgbm, logistic_regression,
                    pos_weight, rank_combine, rank_mean)
 from selection import assign_clusters, cluster_hits, greedy_coverage
 
 
 def run(library, seed=cfg.SEED, n_pick=cfg.N_PICK, verbose=True):
     """Return a DataFrame with CatalogID, Score (0-1), and Sel_50 for the given library."""
-    al = load_active_learning()
-    X_al, ok = featurize(al.smiles, n_jobs=cfg.N_JOBS)
-    al, X_al = al[ok].reset_index(drop=True), X_al[ok]
-    y_al = al.label.values.astype(int)
+    # Load active learning dataset
+    active_learning_full = load_active_learning()
+    X_al_full, al_valid = featurize(active_learning_full.smiles, n_jobs=cfg.N_JOBS)
+    active_learning = active_learning_full[al_valid].reset_index(drop=True)
 
-    del_rows = load_del(library.smiles, seed=seed, verbose=verbose)
-    X_del, ok = featurize(del_rows.smiles, n_jobs=cfg.N_JOBS, verbose=verbose)
-    del_rows, X_del = del_rows[ok].reset_index(drop=True), X_del[ok]
+    X_al = X_al_full[al_valid]
+    y_al = active_learning.label.values.astype(int)
+
+    # Load DEL dataset
+    del_full = load_del(library.smiles, seed=seed, verbose=verbose)
+    X_del, del_valid = featurize(del_full.smiles, n_jobs=cfg.N_JOBS, verbose=verbose)
+    del_rows = del_full[del_valid].reset_index(drop=True)
+    
+    X_del = X_del[del_valid]
     y_del = del_rows.label.values.astype(int)
-    confidence = al_filter_confidence(X_al, y_al, X_del, seed=seed)
-    keep = al_keep_mask(confidence, y_del, p=cfg.AL_FILTER_P)
+
+    # Filter the DEL dataset by the AL model's confidence
+    del_confidence = run_al_filter_on_del(X_al, y_al, X_del, seed=seed)
+    filter_mask = create_del_filtered_mask(del_confidence, y_del, p=cfg.AL_FILTER_P)
 
     # Score every library compound except those already tested in the active-learning round.
-    universe = library[~library.catalog_id.isin(al.catalog_id)].reset_index(drop=True)
-    X_sub, ok = featurize(universe.smiles, n_jobs=cfg.N_JOBS, verbose=verbose)
-    universe, X_sub = universe[ok].reset_index(drop=True), X_sub[ok]
+    universe = library[
+        ~library.catalog_id.isin(active_learning.catalog_id)
+    ].reset_index(drop=True)
+    X_submission, submission_valid = featurize(universe.smiles, n_jobs=cfg.N_JOBS, verbose=verbose)
+    universe = universe[submission_valid].reset_index(drop=True)
+    X_submission = X_submission[submission_valid]
 
-    lgbm_p = lightgbm(pos_weight(y_del[keep]), seed=seed).fit(
-        X_del[keep], y_del[keep]).predict_proba(X_sub)[:, 1]
-    logreg_p = logistic_regression(seed).fit(X_del[keep], y_del[keep]).predict_proba(X_sub)[:, 1]
-    al_p = logistic_regression(seed).fit(X_al, y_al).predict_proba(X_sub)[:, 1]
-    score = rank_combine(rank_mean(lgbm_p, logreg_p), al_p, alpha=cfg.ALPHA, seed=seed)
+    # Train AL-filtered DEL core and active-learning model to rank submission compounds
+    filtered_del_lgbm = lightgbm(pos_weight(y_del[filter_mask]), seed=seed).fit(
+        X_del[filter_mask], y_del[filter_mask]
+    )
+    del_lgbm_p = filtered_del_lgbm.predict_proba(X_submission)[:, 1]
 
-    hit_fp = X_al[y_al == 1]
-    hit_clusters, n_clusters = cluster_hits(hit_fp, cfg.T_CLUSTER)
-    cluster = assign_clusters(X_sub, hit_fp, hit_clusters, cfg.T_CLUSTER)
-    picks = greedy_coverage(cluster, score, cfg.PMAX, n_pick)
+    filtered_del_logreg = logistic_regression(seed).fit(X_del[filter_mask], y_del[filter_mask])
+    del_logreg_p = filtered_del_logreg.predict_proba(X_submission)[:, 1]
+
+    al_logreg = logistic_regression(seed).fit(X_al, y_al)
+    al_logreg_p = al_logreg.predict_proba(X_submission)[:, 1]
+
+    score = rank_combine(
+        rank_mean(del_lgbm_p, del_logreg_p), al_logreg_p, alpha=cfg.ALPHA, seed=seed
+    )
+
+    # Re-rank submission compounds to improve cluster diversity and coverage
+    hit_fingerprints = X_al[y_al == 1]
+    hit_clusters, n_clusters = cluster_hits(hit_fingerprints, cfg.T_CLUSTER)
+    X_submission_cluster = assign_clusters(X_submission, hit_fingerprints, hit_clusters, cfg.T_CLUSTER)
+    picks = greedy_coverage(X_submission_cluster, score, cfg.PMAX, n_pick)
     if verbose:
         print(f"[run] {len(universe):,} scored | {n_clusters} hit-clusters | "
-              f"{int((cluster >= 0).sum()):,} analogues | {len(picks)} selected", flush=True)
+              f"{int((X_submission_cluster >= 0).sum()):,} analogues | {len(picks)} selected", flush=True)
 
     # The challenge expects a 0-1 Score; rankdata/N is strictly monotonic in the ensemble score,
     # so AUC and the selection are unchanged, only the arbitrary rank-sum scale is removed.
-    score01 = np.round(rankdata(score) / len(score), 6)
-    out = pd.DataFrame({"CatalogID": universe.catalog_id.astype(str), "Score": score01})
+    score_normalized = np.round(rankdata(score) / len(score), 6)
+    scored_library = pd.DataFrame(
+        {"CatalogID": universe.catalog_id.astype(str), "Score": score_normalized}
+    )
     selected = set(universe.iloc[picks].catalog_id.astype(str))
-    out["Sel_50"] = out.CatalogID.isin(selected).astype(int)
-    return out
+    scored_library["Sel_50"] = scored_library.CatalogID.isin(selected).astype(int)
+    return scored_library
 
 
 def main():
@@ -75,9 +99,9 @@ def main():
     parser.add_argument("--n-pick", type=int, default=cfg.N_PICK, help="number of compounds to select")
     args = parser.parse_args()
 
-    out = run(load_library(args.library), n_pick=args.n_pick)
-    out.to_csv(args.out, index=False)
-    print(f"[write] {args.out}: {len(out):,} scored, {int(out.Sel_50.sum())} selected")
+    scored_library = run(load_library(args.library), n_pick=args.n_pick)
+    scored_library.to_csv(args.out, index=False)
+    print(f"[write] {args.out}: {len(scored_library):,} scored, {int(scored_library.Sel_50.sum())} selected")
 
 
 if __name__ == "__main__":

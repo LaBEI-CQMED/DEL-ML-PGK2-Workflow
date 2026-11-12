@@ -33,14 +33,17 @@ def greedy_coverage(cluster, score, pmax, n_pick):
     """
     cluster = np.asarray(cluster)
     p = pmax * (rankdata(np.asarray(score, dtype=float)) / len(score))
-    survival = {}
-    chosen = np.zeros(len(p), dtype=bool)
-    picks = []
+    survival = dict()  # cluster -> fraction of that cluster still uncovered
+    chosen = np.zeros(len(p), dtype=bool)  # row index -> True if already picked
+    picks = list()  # row indices of the greedy picks
+
     for _ in range(n_pick):
+        # Compute the expected gain of picking each row, given how much of its cluster is still uncovered
         gain = np.where(cluster >= 0, p * np.array([survival.get(c, 1.0) for c in cluster]), 0.0)
         gain[chosen] = -1.0
         i = int(np.argmax(gain))
         picks.append(i)
         chosen[i] = True
         survival[int(cluster[i])] = survival.get(int(cluster[i]), 1.0) * (1.0 - p[i])
+
     return picks

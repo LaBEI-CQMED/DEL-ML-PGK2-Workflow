@@ -4,13 +4,21 @@ Paths default to a local ``data/`` directory and can be overridden with environm
 variables so the challenge data never has to live inside the repository.
 """
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load variables from a local .env (next to this file) so the challenge data paths
+# live outside the repo and are never committed. Real environment variables win.
+load_dotenv(Path(__file__).parent / ".env")
 
 _env = os.environ.get
-_DEFAULT_DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+# _DEFAULT_DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+_DEFAULT_DATA = Path(__file__).parent / "data"
 
-DATA_DIR = _env("DXC_DATA", _DEFAULT_DATA)
-DEL_TABLE = _env("DXC_DEL_TABLE", os.path.join(DATA_DIR, "del_compounds.parquet"))
-ACTIVE_LEARNING = _env("DXC_ACTIVE_LEARNING", os.path.join(DATA_DIR, "active_learning_data.csv"))
+DATA_DIR = Path(_env("DXC_DATA", _DEFAULT_DATA))
+DEL_TABLE = Path(_env("DXC_DEL_TABLE", DATA_DIR / "del_compounds.parquet")) #os.path.join(DATA_DIR, "del_compounds.parquet"))
+ACTIVE_LEARNING = Path(_env("DXC_ACTIVE_LEARNING", DATA_DIR / "active_learning_data.csv")) # os.path.join(DATA_DIR, "active_learning_data.csv"))
 TEST_SPLIT = _env("DXC_TEST_SPLIT", os.path.join(DATA_DIR, "PGK2_Test_split.csv"))
 
 SEED = 0

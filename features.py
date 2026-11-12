@@ -23,32 +23,49 @@ def _fingerprint_chunk(chunk):
     return [_fingerprint(s) for s in chunk]
 
 
+def _parallel_fingerprint(smiles, n_jobs, chunk):
+    chunks = [smiles[i:i + chunk] for i in range(0, len(smiles), chunk)]
+    with Pool(n_jobs) as pool:
+        rows = list()
+        for result in pool.imap(_fingerprint_chunk, chunks):
+            rows.extend(result)
+
+    return rows
+
+
 def featurize(smiles, n_jobs=1, chunk=20_000, verbose=False):
     """SMILES iterable -> (csr matrix [n, FP_BITS], boolean mask of parsable rows).
 
     Unparsable rows become all-zero rows marked False in the mask; callers drop them.
     """
     smiles = list(smiles)
+
     if n_jobs > 1 and len(smiles) > chunk:
-        chunks = [smiles[i:i + chunk] for i in range(0, len(smiles), chunk)]
-        with Pool(n_jobs) as pool:
-            rows = []
-            for k, result in enumerate(pool.imap(_fingerprint_chunk, chunks), 1):
-                rows.extend(result)
-                if verbose and k % 20 == 0:
-                    print(f"    featurized {k * chunk:,}/{len(smiles):,}", flush=True)
+        rows = _parallel_fingerprint(smiles, n_jobs=n_jobs, chunk=chunk)
     else:
         rows = [_fingerprint(s) for s in smiles]
 
-    ok = np.array([bits is not None for bits in rows])
+    valid = np.array([bits is not None for bits in rows])
     indptr = np.zeros(len(rows) + 1, dtype=np.int64)
     for i, bits in enumerate(rows):
         indptr[i + 1] = indptr[i] + (0 if bits is None else len(bits))
-    indices = np.concatenate([b for b in rows if b is not None]) if ok.any() \
-        else np.zeros(0, dtype=np.int32)
+
+    indices = np.zeros(0, dtype=np.int32)
+    if valid.any():
+        indices = np.concatenate([b for b in rows if b is not None]) 
+
     data = np.ones(len(indices), dtype=np.float32)
-    X = sparse.csr_matrix((data, indices, indptr), shape=(len(rows), FP_BITS), dtype=np.float32)
-    return X, ok
+    X = sparse.csr_matrix(
+        (data, indices, indptr), 
+        shape=(len(rows), FP_BITS), 
+        dtype=np.float32
+    )
+
+    if verbose:
+        print(f"[featurize] {len(rows):,} SMILES -> {X.shape[0]:,} x {X.shape[1]:,} ECFP4", flush=True)
+        print(f"[featurize] {valid.sum():,} parsable | {len(rows) - valid.sum():,} unparsable", flush=True)
+    
+    return X, valid
 
 
 def tanimoto_nearest(X, X_ref, chunk=20_000):
