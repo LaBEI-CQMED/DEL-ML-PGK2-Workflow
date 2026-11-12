@@ -32,10 +32,19 @@ NEG_RATIO = 10
 # AL row-selection filter: drop the least AL-confident DEL positives and most AL-confident negatives
 AL_FILTER_P = 0.20
 
-# Ensemble: weight on the in-domain AL ranking; the DEL core wieght is 1 - ALPHA
+# Ensemble: weight on the in-domain AL ranking; the DEL core weight is 1 - ALPHA.
+# alpha = 0 makes the score the pure DEL core (no AL weight).
 ALPHA = 0.20
 
 # Cluster-coverage selection.
-T_CLUSTER = 0.4   # ECFP4 Tanimoto for both hit-clustering and the analogue cutoff
+T_CLUSTER = 0.4   # ECFP4 Tanimoto for hit-clustering
+T_POOL = 0.4      # ECFP4 Tanimoto for the analogue pool
+NOVELTY_AS_CLUSTER = False  # treat the novel pool (no hit within T_POOL)
 PMAX = 0.50       # coverage depth knob
 N_PICK = 50
+
+# The two deployed submissions differ only in the ranker weight and the coverage geometry.
+SUBMISSIONS = {
+    1: dict(alpha=ALPHA, t_cluster=T_CLUSTER, t_pool=T_POOL, novelty_as_cluster=NOVELTY_AS_CLUSTER),
+    2: dict(alpha=0.00, t_cluster=0.5, t_pool=0.4, novelty_as_cluster=True),
+}

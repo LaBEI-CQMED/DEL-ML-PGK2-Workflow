@@ -18,10 +18,16 @@ def cluster_hits(X_hits, t):
     return labels, n_clusters
 
 
-def assign_clusters(X, X_hits, hit_clusters, t):
-    """Assign each row of X to its nearest hit's cluster, or -1 if no hit within Tanimoto t."""
+def assign_clusters(X, X_hits, hit_clusters, t, novelty_as_cluster=False):
+    """Assign each row of X to its nearest hit's cluster when within Tanimoto t.
+
+    Rows with no hit within t are the novel pool: with ``novelty_as_cluster`` they share one extra
+    cluster id (so the coverage objective can spend a pick there), otherwise they get -1 and are
+    excluded from coverage.
+    """
     similarity, nearest = tanimoto_nearest(X, X_hits)
-    return np.where(similarity >= t, hit_clusters[nearest], -1)
+    novel = int(hit_clusters.max()) + 1 if novelty_as_cluster else -1
+    return np.where(similarity >= t, hit_clusters[nearest], novel)
 
 
 def greedy_coverage(cluster, score, pmax, n_pick):

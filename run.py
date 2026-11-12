@@ -1,14 +1,19 @@
-"""Score a compound library for PGK2 binding and select N picks (submission-1 workflow).
+"""Score a compound library for PGK2 binding and select N picks.
 
 Pipeline:
   1. Train an AL-filtered DEL core (ECFP4 LightGBM + LogisticRegression) on the DEL rows the
      active-learning labels select, with negatives matched to the library being scored.
-  2. Rank-combine the DEL core with an in-domain active-learning model.
+  2. Rank-combine the DEL core with an in-domain active-learning model (alpha=0 is the pure DEL core).
   3. Assign every compound to its nearest active-learning hit-cluster and greedily pick the N that
      cover the most distinct clusters.
 
+Two deployed configurations are selectable with --submission (see config.SUBMISSIONS):
+  1 (default): ensemble DEL+AL ranker, hit-clusters at Tanimoto 0.4, no novel series.
+  2:           pure DEL ranker, hit-clusters at Tanimoto 0.5, novel pool as one extra series.
+
 Usage:
-  DXC_JOBS=32 python run.py --library PGK2_Test_split.csv --out submission.csv
+  DXC_JOBS=32 python run.py --submission 1 --library PGK2_Test_split.csv --out submission_1.csv
+  DXC_JOBS=32 python run.py --submission 2 --library PGK2_Test_split.csv --out submission_2.csv
 """
 import argparse
 
@@ -67,35 +72,37 @@ def train_ensemble_models(X_del, y_del, X_al, y_al, seed=cfg.SEED):
     return filtered_del_lgbm, filtered_del_logreg, al_logreg
 
 
-def score_ensemble(ensemble_models, X_submission):
-    """Return the ensemble score for each row of X_submission."""
+def score_ensemble(ensemble_models, X_submission, alpha=cfg.ALPHA):
+    """Return the ensemble score for each row of X_submission.
+
+    ``alpha`` weights the in-domain AL ranking against the DEL core.
+    """
     filtered_del_lgbm, filtered_del_logreg, al_logreg = ensemble_models
 
     del_lgbm_p = filtered_del_lgbm.predict_proba(X_submission)[:, 1]
     del_logreg_p = filtered_del_logreg.predict_proba(X_submission)[:, 1]
     al_logreg_p = al_logreg.predict_proba(X_submission)[:, 1]
     scores = rank_combine(
-        rank_mean(del_lgbm_p, del_logreg_p), al_logreg_p, alpha=cfg.ALPHA
+        rank_mean(del_lgbm_p, del_logreg_p), al_logreg_p, alpha=alpha
     )
     return scores
 
 
-def re_rank_submission(X_submission, score, X_al, y_al, n_pick=cfg.N_PICK):
-    """Re-rank the submission compounds to improve cluster diversity and coverage.
-
-    Each candidate contributes p = pmax * score_percentile, discounted by how much of its cluster
-    is still uncovered: the first pick in a cluster earns the full p, later picks earn less, so the
-    objective rewards breadth across clusters before depth within any one.
-    """
+def re_rank_submission(X_submission, score, X_al, y_al, n_pick=cfg.N_PICK,
+                       t_cluster=cfg.T_CLUSTER, t_pool=cfg.T_POOL,
+                       novelty_as_cluster=cfg.NOVELTY_AS_CLUSTER):
+    """Re-rank the submission compounds to improve cluster diversity and coverage."""
     hit_fingerprints = X_al[y_al == 1]
-    hit_clusters, n_clusters = cluster_hits(hit_fingerprints, cfg.T_CLUSTER)
-    X_submission_cluster = assign_clusters(X_submission, hit_fingerprints, hit_clusters, cfg.T_CLUSTER)
+    hit_clusters, n_clusters = cluster_hits(hit_fingerprints, t_cluster)
+    X_submission_cluster = assign_clusters(X_submission, hit_fingerprints, hit_clusters, t_pool,
+                                           novelty_as_cluster=novelty_as_cluster)
     picks = greedy_coverage(X_submission_cluster, score, cfg.PMAX, n_pick)
 
     return picks
 
 
-def run(library, seed=cfg.SEED, n_pick=cfg.N_PICK, verbose=True):
+def run(library, seed=cfg.SEED, n_pick=cfg.N_PICK, alpha=cfg.ALPHA, t_cluster=cfg.T_CLUSTER,
+        t_pool=cfg.T_POOL, novelty_as_cluster=cfg.NOVELTY_AS_CLUSTER, verbose=True):
     """Return a DataFrame with CatalogID, Score (0-1), and Sel_50 for the given library."""
     X_al, y_al, active_learning = load_active_learning_dataset()
     X_del, y_del = load_del_dataset(library, seed=seed, verbose=verbose)
@@ -110,8 +117,10 @@ def run(library, seed=cfg.SEED, n_pick=cfg.N_PICK, verbose=True):
     ensemble_models = train_ensemble_models(
         X_del[filter_mask], y_del[filter_mask], X_al, y_al, seed=seed
     )
-    scores = score_ensemble(ensemble_models, X_submission)
-    picks = re_rank_submission(X_submission, scores, X_al, y_al, n_pick)
+    scores = score_ensemble(ensemble_models, X_submission, alpha=alpha)
+    picks = re_rank_submission(X_submission, scores, X_al, y_al, n_pick,
+                               t_cluster=t_cluster, t_pool=t_pool,
+                               novelty_as_cluster=novelty_as_cluster)
     # Normalizes to 0-1 Score; rankdata/N is strictly monotonic in the ensemble score
     score_normalized = np.round(rankdata(scores) / len(scores), 6)
 
@@ -127,13 +136,16 @@ def run(library, seed=cfg.SEED, n_pick=cfg.N_PICK, verbose=True):
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--submission", type=int, choices=sorted(cfg.SUBMISSIONS), default=1,
+                        help="which deployed submission preset to run (default: 1)")
     parser.add_argument("--library", default=cfg.TEST_SPLIT,
                         help="CSV of compounds to score (CatalogID, SMILES)")
     parser.add_argument("--out", default="submission.csv", help="output CSV path")
     parser.add_argument("--n-pick", type=int, default=cfg.N_PICK, help="number of compounds to select")
     args = parser.parse_args()
 
-    scored_library = run(load_library(args.library), n_pick=args.n_pick)
+    scored_library = run(load_library(args.library), n_pick=args.n_pick,
+                         **cfg.SUBMISSIONS[args.submission])
     scored_library.to_csv(args.out, index=False)
     print(f"[write] {args.out}: {len(scored_library):,} scored, {int(scored_library.Sel_50.sum())} selected")
 
