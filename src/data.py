@@ -1,8 +1,8 @@
 """Load the active-learning labels, the DEL training table, and a library to score."""
 import pandas as pd
 
-from config import ACTIVE_LEARNING, DEL_TABLE, NEG_RATIO, N_JOBS, SEED, TEST_SPLIT
-from features import featurize, tanimoto_max
+from .config import ACTIVE_LEARNING, DEL_TABLE, NEG_RATIO, N_JOBS, SEED, TEST_SPLIT
+from .features import featurize, tanimoto_max
 
 
 def load_active_learning():

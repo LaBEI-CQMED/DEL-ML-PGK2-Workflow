@@ -18,8 +18,8 @@ Both submissions run the same engine; they differ only in the ranker weight and 
 
 | | `alpha` | `t_cluster` (hit-clustering) | `t_pool` (analogue cutoff) | novelty-as-cluster |
 |---|---|---|---|---|
-| **Submission 1** (ensemble) | `0.20` | `0.4` | `0.4` | off |
-| **Submission 2** (pure DEL, second probe) | `0.00` | `0.5` | `0.4` | on |
+| **Submission 1** | `0.20` | `0.4` | `0.4` | off |
+| **Submission 2** | `0.00` | `0.5` | `0.4` | on |
 
 Submission 2 scores with the **pure DEL core** (`alpha = 0`, no AL weight) and clusters the hits more strictly (Tanimoto `0.5`).
 
@@ -27,11 +27,11 @@ Submission 2 scores with the **pure DEL core** (`alpha = 0`, no AL weight) and c
 
 | File | Role |
 |---|---|
-| `config.py` | data paths (overridable via env vars) and the deployed hyperparameters |
-| `features.py` | ECFP4 fingerprints and Tanimoto similarity |
-| `data.py` | load the AL labels, the DEL table, and a library to score |
-| `model.py` | DEL/AL learners, the AL row-selection filter, the rank-combination |
-| `selection.py` | hit clustering and greedy cluster-coverage selection |
+| `src/config.py` | data paths (overridable via env vars) and the deployed hyperparameters |
+| `src/features.py` | ECFP4 fingerprints and Tanimoto similarity |
+| `src/data.py` | load the AL labels, the DEL table, and a library to score |
+| `src/model.py` | DEL/AL learners, the AL row-selection filter, the rank-combination |
+| `src/selection.py` | hit clustering and greedy cluster-coverage selection |
 | `run.py` | end-to-end entry point |
 | `tests/` | reproduction check against the committed submissions 1 and 2 |
 

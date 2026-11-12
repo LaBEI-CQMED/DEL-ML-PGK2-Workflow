@@ -21,12 +21,12 @@ import numpy as np
 import pandas as pd
 from scipy.stats import rankdata
 
-import config as cfg
-from data import load_active_learning, load_del, load_library
-from features import featurize
-from model import (run_al_filter_on_del, create_del_filtered_mask, lightgbm, logistic_regression,
-                   pos_weight, rank_combine, rank_mean)
-from selection import assign_clusters, cluster_hits, greedy_coverage
+from src import config as cfg
+from src.data import load_active_learning, load_del, load_library
+from src.features import featurize
+from src.model import (run_al_filter_on_del, create_del_filtered_mask, lightgbm, logistic_regression,
+                       pos_weight, rank_combine, rank_mean)
+from src.selection import assign_clusters, cluster_hits, greedy_coverage
 
 
 def load_active_learning_dataset():

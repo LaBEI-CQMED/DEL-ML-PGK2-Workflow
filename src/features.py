@@ -6,7 +6,7 @@ from rdkit import Chem, RDLogger
 from rdkit.Chem import rdFingerprintGenerator
 from scipy import sparse
 
-from config import FP_BITS, FP_RADIUS
+from .config import FP_BITS, FP_RADIUS
 
 RDLogger.DisableLog("rdApp.*")
 _generator = rdFingerprintGenerator.GetMorganGenerator(radius=FP_RADIUS, fpSize=FP_BITS)

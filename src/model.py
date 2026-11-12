@@ -7,7 +7,7 @@ import numpy as np
 from scipy.stats import rankdata
 from sklearn.linear_model import LogisticRegression
 
-from config import N_JOBS, SEED
+from .config import N_JOBS, SEED
 
 
 def logistic_regression(seed=SEED):

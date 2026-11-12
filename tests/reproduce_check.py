@@ -12,9 +12,9 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import config as cfg          # noqa: E402
-from data import load_library  # noqa: E402
-from run import run            # noqa: E402
+from src import config as cfg      # noqa: E402
+from src.data import load_library  # noqa: E402
+from run import run                # noqa: E402
 
 HERE = Path(__file__).parent
 REFERENCES = {

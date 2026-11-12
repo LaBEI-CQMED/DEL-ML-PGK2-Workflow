@@ -8,7 +8,7 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 from scipy.stats import rankdata
 
-from features import tanimoto_matrix, tanimoto_nearest
+from .features import tanimoto_matrix, tanimoto_nearest
 
 
 def cluster_hits(X_hits, t):

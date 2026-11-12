@@ -8,11 +8,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load variables from a local .env file if present
-load_dotenv(Path(__file__).parent / ".env")
+# Load variables from a local .env file at the project root if present
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 _env = os.environ.get
-_DEFAULT_DATA = Path(__file__).parent / "data"
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_DEFAULT_DATA = _PROJECT_ROOT / "data"
 
 DATA_DIR = Path(_env("DXC_DATA", _DEFAULT_DATA))
 DEL_TABLE = Path(_env("DXC_DEL_TABLE", DATA_DIR / "del_compounds.parquet"))
