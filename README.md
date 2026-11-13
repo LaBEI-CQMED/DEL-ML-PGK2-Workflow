@@ -1,6 +1,6 @@
-# PGK2 DEL-ML Pipeline (Team SABIA)
+# PGK2 DEL-ML Pipeline (Team SABIÁ)
 
-Virtual-screening workflow for the **DREAMxCACHE / Target 2035 DEL-ML Challenge** (target: PGK2), submitted by Team SABIA and selected for the prospective phase. Given a compound library, it produces a continuous binding score for every compound and selects a diverse shortlist for experimental testing.
+Virtual-screening workflow for the **DREAMxCACHE / Target 2035 DEL-ML Challenge** (target: PGK2), submitted by Team SABIÁ and selected for the prospective phase. Given a compound library, it produces a continuous binding score for every compound and selects a diverse shortlist for experimental testing.
 
 ## Method
 
@@ -61,3 +61,30 @@ With the data configured, this retrains everything and asserts the output matche
 $ python tests/reproduce_check.py        # both submissions
 $ python tests/reproduce_check.py 2      # only submission 2
 ```
+
+## Team SABIÁ - Structural and Artificial Intelligence Biology Alliance
+
+We are a team of Brazilian researchers passionate about advancing the integration of machine learning (ML) and artificial intelligence (AI) into drug discovery. We see PGK2 as an ideal case study for exploring how computational strategies can improve the identification of novel molecular binders, particularly through the integration of experimental data, alternative molecular representations, and knowledge transfer across chemical spaces and biological targets.
+
+**People**
+- Arthur Cerveira
+- João Pedro Aroucha
+- Raquel Barbosa
+- Renata Barros
+- Matheus Dalmolin
+- Marcelo Fernandes
+- Philipe Fernandes
+- Frederico Kremer
+- Karina Machado
+- Vinicius Maltarollo
+- Giovanna Assunção Pereira Soares
+- Gabriel Corrêa Veríssimo
+- Adriano Velasque Werhli
+- Rafael Junqueira Borges
+
+**Institutions**
+- Universidade Estadual de Campinas (UNICAMP)
+- Universidade Federal do Rio Grande (FURG)
+- Universidade Federal de Pelotas (UFPel)
+- Universidade Federal do Rio Grande do Norte (UFRN)
+- Universidade Federal de Minas Gerais (UFMG)
